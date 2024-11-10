@@ -42,7 +42,7 @@ py-modules = ["argparse_prompt"]
 # pyproject-tools
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 enable_error_code = """type-arg,no-untyped-def,redundant-cast,redundant-self,comparison-overlap,
                     no-untyped-call,no-any-return,no-any-unimported,unreachable,redundant-expr,
                     possibly-undefined,truthy-bool,truthy-iterable,ignore-without-code,
@@ -57,7 +57,7 @@ warn_unreachable = true
 exclude = ["build", "docs"]
 
 [tool.coverage.run]
-source = ["argparse_prompt"]
+source = ["argparse_prompt.py"]
 command_line = "-m pytest"
 branch = true
 
@@ -80,7 +80,7 @@ testpaths = ["tests"]
 
 [tool.vulture]
 ignore_names = ["_*", "unused_*"]
-paths = [".whitelist", "prompter.py"]
+paths = [".whitelist", "argparse_prompt.py"]
 make_whitelist = true
 sort_by_size = true
 verbose = false
@@ -91,7 +91,7 @@ show-fixes = true
 
 exclude = [".git", ".idea", ".mypy_cache", ".tox", ".venv", ".nox"]
 
-target-version = "py38"
+target-version = "py39"
 line-length = 88
 indent-width = 4
 
