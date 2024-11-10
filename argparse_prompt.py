@@ -9,7 +9,6 @@ import getpass
 import inspect
 import os
 import sys
-from collections.abc import Callable
 from contextlib import redirect_stdout
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TypeAlias, TypeGuard
@@ -18,7 +17,8 @@ import termcolor
 from typing_extensions import TypeVar, override
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Sequence
+
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
@@ -26,8 +26,18 @@ T_co = TypeVar("T_co", covariant=True)
 Colors: TypeAlias = Literal["blue", "red", "green", "yellow"]
 
 
+def _colored(text: str, color: Colors | None = None) -> str:
+    """Wrapper for termcolor.colored with force_color=True."""
+    return termcolor.colored(text, color, force_color=True)
+
+
+def cerrprint(text: str, color: Colors | None = None) -> None:
+    """Print text to stderr with the given color."""
+    print(_colored(text, color), file=sys.stderr)
+
+
 class Validator(Protocol, Generic[T_co]):
-    """A protocol for validating input.
+    """A protocol for validating input. Argument names must match.
 
     Args:
         val (str | None): The value to validate.
@@ -47,17 +57,7 @@ class Validator(Protocol, Generic[T_co]):
         ...
 
 
-def colored(text: str, color: Colors | None = None) -> str:
-    """Force color text."""
-    return termcolor.colored(text, color, force_color=True)
-
-
-def cerrprint(text: str, color: Colors | None = None) -> None:
-    """Print text to stderr with the given color."""
-    print(colored(text, color), file=sys.stderr)
-
-
-class _Unset(Enum):
+class _UnsetT(Enum):
     """Container enum for the UNSET Literal."""
 
     UNSET = 0
@@ -67,7 +67,7 @@ class _Unset(Enum):
         return self.name
 
 
-class _Required(Enum):
+class _RequiredT(Enum):
     """Container enum for the REQUIRED Literal."""
 
     REQUIRED = 0
@@ -77,10 +77,10 @@ class _Required(Enum):
         return self.name
 
 
-UNSET = _Unset.UNSET
-UNSET_T: TypeAlias = Literal[_Unset.UNSET]
-REQUIRED = _Required.REQUIRED
-REQUIRED_T: TypeAlias = Literal[_Required.REQUIRED]
+UNSET = _UnsetT.UNSET
+UNSET_T: TypeAlias = Literal[_UnsetT.UNSET]
+REQUIRED = _RequiredT.REQUIRED
+REQUIRED_T: TypeAlias = Literal[_RequiredT.REQUIRED]
 
 
 class PromptParser(argparse.ArgumentParser):
@@ -89,7 +89,17 @@ class PromptParser(argparse.ArgumentParser):
     def __init__(
         self, retries: int = 1, interactive: bool = True, *args: Any, **kwargs: Any
     ) -> None:
-        """Creates a new prompt parser."""
+        """Creates a new prompt parser.
+
+        Args:
+            retries: The number of times to retry prompting the user for a value.
+                if the user provides an invalid value or no value (for a required argument).
+            interactive: If true, the parser will prompt the user for any missing arguments
+                unless --non-interactive is provided. If false, the parser will not prompt the user
+                unless --interactive is provided.
+            args: Positional arguments to pass to the `argparse.ArgumentParser` constructor.
+            kwargs: Keyword arguments to pass to the `argparse.ArgumentParser` constructor.
+        """
         self.retries = max(retries, 1)
 
         self.namespace = argparse.Namespace()
@@ -111,13 +121,21 @@ class PromptParser(argparse.ArgumentParser):
             )
 
     @override
-    def parse_args(self, args: list[str] | None = None) -> argparse.Namespace:  # type: ignore[override]
-        """Parses the arguments, prompting the user for any unspecified arguments."""
-        namespace = super().parse_args(args, namespace=self.namespace)
-        for key, value in list(namespace.__dict__.items()):
+    def parse_args(  # type: ignore[override]
+        self, args: Sequence[str] | None = None, namespace: None = None
+    ) -> argparse.Namespace:
+        """Parses the arguments, prompting the user for any unspecified arguments.
+
+        Args:
+            args: The arguments to parse. If None, defaults to `sys.argv`.
+            namespace: Unused. This is here to satisfy the superclass method signature.
+                `self.namespace` is used instead.
+        """
+        super().parse_args(args, namespace=self.namespace)
+        for key, value in list(self.namespace.__dict__.items()):
             if value is UNSET:
                 delattr(self.namespace, key)
-        return namespace
+        return self.namespace
 
     @override
     def add_argument(  # type: ignore[override]
@@ -134,9 +152,21 @@ class PromptParser(argparse.ArgumentParser):
     ) -> None:
         """For all unlisted arguments, refer to the parent class.
 
-        :param prompt: False if we never want to prompt the user for this argument
-        :param secure: True if this argument contains sensitive information, and the input should not be shown on the
-            command line while it's input.
+        Args:
+            *args: Positional arguments to pass to the `argparse.ArgumentParser.add_argument` method.
+            prompt: If False, the prompting is disabled independent of the `ARGPARSE_PROMPT_AUTO` or
+                `--non-interactive` flags.
+            type: The type of the argument. If a Validator is provided, it will be called with the value
+                and the namespace to validate the input.
+            default: The default value of the argument. If not provided, default is either `self.validator(None)`
+                or `UNSET` if `self.validator` is not set.
+            choices: A list of choices which must match the type of the argument.
+            required: True if the argument is required.
+            secure: True if the input should not be shown on the command line while it's input.
+            **kwargs: Keyword arguments to pass to the `argparse.ArgumentParser.add_argument` method.
+
+        Raises:
+            ValueError: If `default` is provided for a required argument.
         """
         if required and default is not UNSET:
             raise ValueError("Cannot have a required argument with a default value")
@@ -189,6 +219,14 @@ class PromptParser(argparse.ArgumentParser):
 def _is_validator(
     type: Validator[T] | Validator[T | None] | Callable[[str], T],  # noqa: A002
 ) -> TypeGuard[Validator[T] | Validator[T | None]]:
+    """Check if the type is a Validator (takes a `val` and `namespace` argument).
+
+    Args:
+        type: The type or validator to check.
+
+    Returns:
+        True if the type is a Validator, False otherwise.
+    """
     try:
         signature = inspect.signature(type)
         return tuple(signature.parameters) == ("val", "namespace")
@@ -212,10 +250,17 @@ class Prompt(Generic[T]):
     ) -> None:
         """Creates a new prompt validator.
 
-        :param help: The help string to give the user when prompting
-        :param type: The validation function to use on the prompted data
-        :param secure: True if this argument contains sensitive information, and the input should not be shown on the
-            command line while it's input.
+        Args:
+            namespace: The namespace to validate against.
+            help: The help string to give the user when prompting. Defaults to None.
+            type: The validation function to use on the prompted data or the type of the argument.
+                If None, the type will be str.
+            default: The default value of the argument. Defaults to UNSET.
+            choices: A list of choices which must match the type of the argument. Defaults to None.
+            required: True if the argument is required. Defaults to False.
+            secure: True if the input should not be shown on the command line while it's input.
+                Defaults to False.
+            retries: The number of times to retry prompting the user for a value. Defaults to 1.
         """
         self.namespace = namespace
         self.help = help
@@ -232,6 +277,7 @@ class Prompt(Generic[T]):
         self.err: str | None = None
 
     def _set_choices(self, choices: Iterable[Any] | None) -> list[T] | None:
+        """Check if the choices match the type of the argument."""
         if choices is None:
             return None
         if self.type is None:
@@ -247,6 +293,11 @@ class Prompt(Generic[T]):
         default: T | None | UNSET_T,
         choices: Iterable[Any] | None,
     ) -> None:
+        """Set the type, validator, and choices for the prompt.
+
+        If validator is provided, type and choices have to be None.
+        If type is provided, validator has to be None.
+        """
         self.type: Callable[[str], T] | None
         self.validator: (
             Callable[[str | None], T] | Callable[[str | None], T | UNSET_T] | None
@@ -259,7 +310,6 @@ class Prompt(Generic[T]):
             self.type = _identity  # type: ignore[assignment]
             self.validator = None
             self.default = default
-            self._build_default = False
             self.choices = self._set_choices(choices)
 
         elif _is_validator(type):
@@ -299,6 +349,11 @@ class Prompt(Generic[T]):
         self._name = value
 
     def _get_default(self) -> T | UNSET_T | REQUIRED_T | None:
+        """Get the default value for the argument.
+
+        Tries to use the validator if no default is set.
+        If this fails, the argument is required.
+        """
         if not hasattr(self, "default"):
             if self.validator is None:  # pragma: no cover
                 raise RuntimeError("Validator is not set")
@@ -312,16 +367,24 @@ class Prompt(Generic[T]):
         return self.default
 
     def _get_prompt(self, default: T | UNSET_T | REQUIRED_T | None) -> str:
-        yellow_name = colored(self.name, "yellow")
+        """Build the prompt string for the user.
+
+        ```
+        name [choice, choice, ...]: help
+        > (default) ...
+        ```
+        """
+        yellow_name = _colored(self.name, "yellow")
         help_str = f": {self.help}" if self.help else ""
         default_str = f"({default}) " if default else ""
         choices_str = (
             f" [{', '.join(str(x) for x in self.choices)}]" if self.choices else ""
         )
-        yellow_choices = colored(choices_str, "yellow") if self.choices else ""
+        yellow_choices = _colored(choices_str, "yellow") if self.choices else ""
         return f"{yellow_name}{yellow_choices}{help_str}\n> {default_str}"
 
     def _is_interactive(self) -> bool:
+        """Check if either the environment or the --non-interactive flag is set."""
         _local_non_interactive = getattr(self.namespace, "non_interactive", False)
         return not self._global_non_interactive and not _local_non_interactive
 
@@ -376,7 +439,11 @@ class Prompt(Generic[T]):
             raise
 
     def __call__(self, val: str) -> T | UNSET_T | str | None:
-        """Prompts the user for a value if one is not provided."""
+        """Prompts the user for a value if one is not provided.
+
+        If it fails, it will retry up to `self.retries` times.
+        If non-interactive, it will only try once.
+        """
         interactive = self._is_interactive()
 
         # do not retry if non-interactive
@@ -396,10 +463,13 @@ class Prompt(Generic[T]):
         raise RuntimeError("Unreachable code")  # pragma: no cover
 
     def _success(self, finalval: T | UNSET_T | str | None) -> None:
-        """Print a success message."""
+        """Print a success message.
+
+        `name set to value (type)` or `name UNSET` if no value is set.
+        """
         unmangled_name = self.name.replace("_", "-")
-        yellow_name = colored(unmangled_name, "yellow")
-        green_val = colored(str(finalval), "green")
+        yellow_name = _colored(unmangled_name, "yellow")
+        green_val = _colored(str(finalval), "green")
         if finalval is UNSET:
             cerrprint(f"{yellow_name} {green_val}")
         else:
