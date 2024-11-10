@@ -124,7 +124,7 @@ def assert_output(  # noqa: C901
         expected = list(expected.items())
     errlines = err.splitlines()
     rev_expected = [key for key, _ in reversed(expected)]
-    for ix, (errline, (key, value)) in enumerate(zip(errlines, expected, strict=True)):
+    for ix, (errline, (key, value)) in enumerate(zip(errlines, expected)):
         last_appearance = len(expected) - rev_expected.index(key) - 1 == ix
         if value == "unset":
             if last_appearance:

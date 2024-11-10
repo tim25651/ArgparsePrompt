@@ -11,10 +11,10 @@ import os
 import sys
 from contextlib import redirect_stdout
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TypeAlias, TypeGuard
+from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol
 
 import termcolor
-from typing_extensions import TypeVar, override
+from typing_extensions import TypeAlias, TypeGuard, TypeVar, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
