@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 # pyproject-tools
 
 [project]
-name = "argparse-prompter"
+name = "argparse-prompt"
 version = "0.0.6"
 dependencies = ["termcolor", "typing_extensions"]
 requires-python = ">=3.8"
@@ -33,7 +33,7 @@ dev = ["coverage[toml]", "mypy", "pylint", "pytest"]
 homepage = "https://github.com/tim25651/ArgparsePrompt"
 
 [tool.setuptools]
-py-modules = ["argparse_prompter"]
+py-modules = ["argparse_prompt"]
 
 # pyproject-tools
 
@@ -53,7 +53,7 @@ warn_unreachable = true
 exclude = ["build", "docs"]
 
 [tool.coverage.run]
-source = ["prompter"]
+source = ["argparse_prompt"]
 command_line = "-m pytest"
 branch = true
 

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from prompter import PromptParser
+from argparse_prompt import PromptParser
 
 if TYPE_CHECKING:
     from collections.abc import Callable

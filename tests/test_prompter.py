@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from prompter import UNSET, UNSET_T, Prompt, PromptParser, Validator
+from argparse_prompt import UNSET, UNSET_T, Prompt, PromptParser, Validator
 
 if TYPE_CHECKING:
     import re
