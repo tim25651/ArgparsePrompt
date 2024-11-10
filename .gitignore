@@ -2,6 +2,9 @@
 .nox
 noxfile.py
 
+# pytest
+.pytest_cache
+
 # ruff
 .ruff_cache
 
