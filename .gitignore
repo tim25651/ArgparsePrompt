@@ -1,3 +1,10 @@
+# nox
+.nox
+noxfile.py
+
+# ruff
+.ruff_cache
+
 .idea
 
 # Byte-compiled / optimized / DLL files

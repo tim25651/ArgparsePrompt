@@ -13,10 +13,10 @@ Note that ArgparsePrompt is only compatible with Python 3.6 and higher, and does
 # Usage
 
 ## Basic Usage
-The only public interface of this module is the `PromptParser` class, which is a subclass of Python's 
+The only public interface of this module is the `PromptParser` class, which is a subclass of Python's
 [ArgumentParser](https://docs.python.org/3/library/argparse.html). Use this class in exactly the same way that you would
 use ArgumentParser, except that, if any argument does not have a specified `default` value, and a value is not provided
-for it on the commandline, the `PromptParser` will prompt for a value for this argument using `input()`, which is read 
+for it on the commandline, the `PromptParser` will prompt for a value for this argument using `input()`, which is read
 from stdin.
 
 Consider the code below (taken from one of the unit tests):
@@ -48,7 +48,7 @@ Since this argument has a default value, you can also just hit enter and this va
 ```
 python test/default_parser.py
 argument: An argument you could provide
-> (foo) 
+> (foo)
 foo
 ```
 
@@ -65,7 +65,7 @@ print(parser.parse_args().argument)
 
 If you do, this type checking will be used for the value you enter at the prompt:
 ```
-$ python test/typed_parser.py  
+$ python test/typed_parser.py
 argument: An argument you could provide
 abc
 Argument "argument" was given a value not of type <class 'int'>
@@ -73,7 +73,7 @@ Argument "argument" was given a value not of type <class 'int'>
 
 ## Secure Values
 For arguments that need to be secure, such as passwords, secret keys etc, you can use `secure=True` when defining your
-argument. This will cause whatever the user inputs for that field to be hidden from the terminal, in the same way that 
+argument. This will cause whatever the user inputs for that field to be hidden from the terminal, in the same way that
 `git`, or `ssh` hides the password input.
 
 For example:
